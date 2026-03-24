@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Steg 2026</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #0d0f14; --surface: #161920; --border: #252830;
+  --text: #e8eaf0; --muted: #6b7280; --accent: #6366f1;
+  --green: #22c55e; --radius: 12px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+
+.header { border-bottom: 1px solid var(--border); padding: 1.2rem 1.5rem; display: flex; align-items: center; gap: 0.75rem; }
+.header a { color: var(--muted); text-decoration: none; font-size: 0.88rem; }
+.header a:hover { color: var(--text); }
+.header h1 { font-size: 1.2rem; font-weight: 700; color: #fff; }
+
+.main { max-width: 760px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+
+/* Stats cards */
+.stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-bottom: 1.5rem; }
+@media(min-width: 500px) { .stats { grid-template-columns: repeat(4, 1fr); } }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; }
+.stat-label { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.4rem; }
+.stat-value { font-size: 1.6rem; font-weight: 800; color: #fff; line-height: 1; }
+.stat-sub { font-size: 0.75rem; color: var(--muted); margin-top: 0.3rem; }
+
+/* Chart containers */
+.chart-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.2rem; margin-bottom: 1rem; }
+.chart-title { font-size: 0.8rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); margin-bottom: 1rem; }
+.chart-wrap { position: relative; height: 220px; }
+
+.footer-note { text-align: center; font-size: 0.75rem; color: var(--muted); margin-top: 1.5rem; }
+
+.loading { text-align: center; padding: 4rem; color: var(--muted); }
+.spin { width: 32px; height: 32px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 1rem; }
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <a href="/apps/">← Apps</a>
+  <span style="color:var(--border)">·</span>
+  <h1>👟 Steg 2026</h1>
+</div>
+
+<div class="main">
+  <div id="loading" class="loading">
+    <div class="spin"></div>
+    <div>Hämtar data från Garmin…</div>
+  </div>
+
+  <div id="content" style="display:none">
+    <div class="stats" id="stats"></div>
+
+    <div class="chart-section">
+      <div class="chart-title">Steg per månad</div>
+      <div class="chart-wrap"><canvas id="monthly-chart"></canvas></div>
+    </div>
+
+    <div class="chart-section">
+      <div class="chart-title">Steg per vecka</div>
+      <div class="chart-wrap"><canvas id="weekly-chart"></canvas></div>
+    </div>
+
+    <div class="chart-section">
+      <div class="chart-title" id="daily-title">Dagliga steg — mars</div>
+      <div class="chart-wrap"><canvas id="daily-chart"></canvas></div>
+    </div>
+
+    <div class="footer-note" id="footer-note"></div>
+  </div>
+</div>
+
+<script>
+const GOAL = d.goal_per_day;
+const SV_MONTHS_FULL = ['', 'januari', 'februari', 'mars', 'april', 'maj', 'juni',
+  'juli', 'augusti', 'september', 'oktober', 'november', 'december'];
+
+function fmt(n) { return n.toLocaleString('sv-SE'); }
+
+async function load() {
+  try {
+    const resp = await fetch('data.php');
+    const d = await resp.json();
+    if (d.error) { document.getElementById('loading').textContent = d.error; return; }
+    render(d);
+  } catch(e) {
+    document.getElementById('loading').textContent = 'Kunde inte ladda data.';
+  }
+}
+
+function render(d) {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('content').style.display = 'block';
+
+  // ── STATS ──
+  const bestDate = d.best_day.date ? new Date(d.best_day.date).toLocaleDateString('sv-SE', {day:'numeric', month:'short'}) : '—';
+  const curMonthSteps = d.current_month.reduce((s, x) => s + x.steps, 0);
+  const curMonthName = SV_MONTHS_FULL[new Date().getMonth() + 1];
+
+  document.getElementById('stats').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">Totalt ${d.year}</div>
+      <div class="stat-value">${fmt(d.total)}</div>
+      <div class="stat-sub">${d.active_days} aktiva dagar</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Snitt / dag</div>
+      <div class="stat-value">${fmt(d.daily_avg)}</div>
+      <div class="stat-sub">Mål: ${fmt(GOAL)}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Bästa dag</div>
+      <div class="stat-value">${fmt(d.best_day.steps)}</div>
+      <div class="stat-sub">${bestDate}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">${curMonthName.charAt(0).toUpperCase() + curMonthName.slice(1)}</div>
+      <div class="stat-value">${fmt(curMonthSteps)}</div>
+      <div class="stat-sub">${d.current_month.length} dagar</div>
+    </div>
+    <div class="stat-card" style="grid-column: span 2">
+      <div class="stat-label">Snitt senaste 365 dagarna</div>
+      <div class="stat-value">${fmt(d.avg_365)}</div>
+      <div class="stat-sub">Rullande årssnitt</div>
+    </div>`;
+
+  // ── MONTHLY CHART ──
+  const months = d.months.filter(m => m.steps > 0 || m.month <= new Date().getMonth() + 1);
+  const monthColors = months.map(m => {
+    if (!m.days_elapsed) return 'rgba(99,102,241,0.3)'; // future month
+    return m.steps >= GOAL * m.days_elapsed
+      ? 'rgba(34,197,94,0.75)'   // green = goal reached
+      : 'rgba(99,102,241,0.7)';  // purple = not yet
+  });
+  const monthBorders = monthColors.map(c => c.replace('0.75','1').replace('0.7','1').replace('0.3','0.5'));
+
+  new Chart(document.getElementById('monthly-chart'), {
+    type: 'bar',
+    data: {
+      labels: months.map(m => m.label),
+      datasets: [{
+        label: 'Steg',
+        data: months.map(m => m.steps),
+        backgroundColor: monthColors,
+        borderColor: monthBorders,
+        borderWidth: 1,
+        borderRadius: 4,
+      }, {
+        type: 'line',
+        label: `Mål (${fmt(GOAL)}/dag × dagar)`,
+        data: months.map(m => {
+          const daysInMonth = new Date(d.year, m.month, 0).getDate();
+          const today = new Date();
+          const isCurrentMonth = m.month === today.getMonth() + 1 && d.year === today.getFullYear();
+          const days = isCurrentMonth ? today.getDate() : (m.steps > 0 ? daysInMonth : 0);
+          return days * GOAL;
+        }),
+        borderColor: 'rgba(34,197,94,0.5)',
+        borderWidth: 1.5,
+        borderDash: [4, 4],
+        pointRadius: 0,
+        fill: false,
+        tension: 0,
+      }]
+    },
+    options: chartOptions(true)
+  });
+
+  // ── WEEKLY CHART ──
+  const WEEKLY_GOAL = GOAL * 7; // 70,000
+  const weekColors = d.weeks.map(w => w.steps >= WEEKLY_GOAL ? 'rgba(34,197,94,0.75)' : 'rgba(99,102,241,0.65)');
+  new Chart(document.getElementById('weekly-chart'), {
+    type: 'bar',
+    data: {
+      labels: d.weeks.map(w => w.label),
+      datasets: [{
+        label: 'Steg',
+        data: d.weeks.map(w => w.steps),
+        backgroundColor: weekColors,
+        borderColor: weekColors.map(c => c.replace('0.75','1').replace('0.65','1')),
+        borderWidth: 1,
+        borderRadius: 4,
+      }, {
+        type: 'line',
+        label: `Mål (${fmt(WEEKLY_GOAL)})`,
+        data: d.weeks.map(() => WEEKLY_GOAL),
+        borderColor: 'rgba(34,197,94,0.5)',
+        borderWidth: 1.5,
+        borderDash: [4,4],
+        pointRadius: 0,
+        fill: false,
+      }]
+    },
+    options: {
+      ...chartOptions(true),
+      plugins: {
+        ...chartOptions(true).plugins,
+        tooltip: {
+          ...chartOptions(true).plugins.tooltip,
+          callbacks: {
+            title: ctx => {
+              const w = d.weeks[ctx[0].dataIndex];
+              return `${w.label}  (${w.from} – ${w.to})`;
+            },
+            label: ctx => ` ${fmt(ctx.parsed.y)} steg`
+          }
+        }
+      }
+    }
+  });
+
+  // ── DAILY CHART ──
+  const month = new Date().getMonth() + 1;
+  document.getElementById('daily-title').textContent =
+    `Dagliga steg — ${SV_MONTHS_FULL[month]}`;
+
+  const dailyColors = d.current_month.map(x =>
+    x.steps >= GOAL ? 'rgba(34,197,94,0.75)' : 'rgba(99,102,241,0.6)');
+
+  new Chart(document.getElementById('daily-chart'), {
+    type: 'bar',
+    data: {
+      labels: d.current_month.map(x => x.day),
+      datasets: [{
+        label: 'Steg',
+        data: d.current_month.map(x => x.steps),
+        backgroundColor: dailyColors,
+        borderColor: dailyColors.map(c => c.replace('0.75','1').replace('0.6','1')),
+        borderWidth: 1,
+        borderRadius: 3,
+      }]
+    },
+    options: {
+      ...chartOptions(false),
+      plugins: {
+        ...chartOptions(false).plugins,
+        annotation: undefined
+      }
+    }
+  });
+
+  document.getElementById('footer-note').textContent =
+    `Data från Garmin Connect · Uppdaterad ${d.cache_updated}`;
+}
+
+function chartOptions(showLegend) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: showLegend, labels: { color: '#6b7280', font: { size: 11 }, boxWidth: 24 } },
+      tooltip: {
+        backgroundColor: '#1e2130',
+        borderColor: '#252830',
+        borderWidth: 1,
+        titleColor: '#e8eaf0',
+        bodyColor: '#9ca3af',
+        callbacks: {
+          label: ctx => ` ${fmt(ctx.parsed.y)} steg`
+        }
+      }
+    },
+    scales: {
+      x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#6b7280', font: { size: 11 } } },
+      y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#6b7280', font: { size: 11 }, callback: v => fmt(v) }, beginAtZero: true }
+    }
+  };
+}
+
+load();
+</script>
+</body>
+</html>
