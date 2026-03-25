@@ -2,6 +2,8 @@
 
 A web app that displays your daily Garmin step data with charts and goal tracking.
 
+![Screenshot of the Steg dashboard](docs/screenshot.jpg)
+
 ## Features
 
 - Daily, weekly, and monthly step charts
