@@ -106,14 +106,15 @@ for ($m = 1; $m <= 12; $m++) {
     ];
 }
 
-// Stats (current year only)
-$year_steps  = array_filter($daily, fn($s, $d) => substr($d, 0, 4) == $year, ARRAY_FILTER_USE_BOTH);
+// Stats (current year only, excluding today — partial day skews the average)
+$today_key   = $today_dt->format('Y-m-d');
+$year_steps  = array_filter($daily, fn($s, $d) => substr($d, 0, 4) == $year && $d !== $today_key, ARRAY_FILTER_USE_BOTH);
 $active_days = array_filter($year_steps, fn($s) => $s > 0);
 $total       = array_sum($year_steps);
 $avg         = count($active_days) > 0 ? (int)round($total / count($active_days)) : 0;
 
-// Rolling 365-day average
-$all_active = array_filter(array_values($raw), fn($s) => (int)$s > 0);
+// Rolling 365-day average (excluding today)
+$all_active = array_filter($raw, fn($s, $d) => (int)$s > 0 && $d !== $today_key, ARRAY_FILTER_USE_BOTH);
 $avg_365    = count($all_active) > 0 ? (int)round(array_sum($all_active) / count($all_active)) : 0;
 
 // Current month daily breakdown
