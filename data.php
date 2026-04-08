@@ -117,6 +117,17 @@ $avg         = count($active_days) > 0 ? (int)round($total / count($active_days)
 $all_active = array_filter($raw, fn($s, $d) => (int)$s > 0 && $d !== $today_key, ARRAY_FILTER_USE_BOTH);
 $avg_365    = count($all_active) > 0 ? (int)round(array_sum($all_active) / count($all_active)) : 0;
 
+// Current streak: consecutive days above goal (excluding today)
+$streak_over_goal = 0;
+$cursor = (clone $today_dt)->modify('-1 day');
+while (true) {
+    $key = $cursor->format('Y-m-d');
+    if (!array_key_exists($key, $raw)) break;
+    if ((int)$raw[$key] < $goal_per_day) break;
+    $streak_over_goal++;
+    $cursor = $cursor->modify('-1 day');
+}
+
 // Current month daily breakdown
 $cur_month_daily = [];
 foreach ($daily as $date => $steps) {
@@ -131,6 +142,7 @@ echo json_encode([
     'total'         => $total,
     'daily_avg'     => $avg,
     'avg_365'       => $avg_365,
+    'streak_over_goal' => $streak_over_goal,
     'days_tracked'  => count($year_steps),
     'active_days'   => count($active_days),
     'best_day'      => $best_day,

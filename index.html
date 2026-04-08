@@ -78,7 +78,7 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, Bl
 </div>
 
 <script>
-const GOAL = d.goal_per_day;
+const GOAL = 10000;
 const SV_MONTHS_FULL = ['', 'januari', 'februari', 'mars', 'april', 'maj', 'juni',
   'juli', 'augusti', 'september', 'oktober', 'november', 'december'];
 
@@ -99,6 +99,8 @@ function render(d) {
   document.getElementById('loading').style.display = 'none';
   document.getElementById('content').style.display = 'block';
 
+  const goal = d.goal_per_day || GOAL;
+
   // ── STATS ──
   const bestDate = d.best_day.date ? new Date(d.best_day.date).toLocaleDateString('sv-SE', {day:'numeric', month:'short'}) : '—';
   const curMonthSteps = d.current_month.reduce((s, x) => s + x.steps, 0);
@@ -113,7 +115,7 @@ function render(d) {
     <div class="stat-card">
       <div class="stat-label">Snitt / dag</div>
       <div class="stat-value">${fmt(d.daily_avg)}</div>
-      <div class="stat-sub">Mål: ${fmt(GOAL)}</div>
+      <div class="stat-sub">Mål: ${fmt(goal)}</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Bästa dag</div>
@@ -129,13 +131,18 @@ function render(d) {
       <div class="stat-label">Snitt senaste 365 dagarna</div>
       <div class="stat-value">${fmt(d.avg_365)}</div>
       <div class="stat-sub">Rullande årssnitt</div>
+    </div>
+    <div class="stat-card" style="grid-column: span 2">
+      <div class="stat-label">Dagar i rad över ${fmt(goal)} steg</div>
+      <div class="stat-value">${fmt(d.streak_over_goal || 0)}</div>
+      <div class="stat-sub"></div>
     </div>`;
 
   // ── MONTHLY CHART ──
   const months = d.months.filter(m => m.steps > 0 || m.month <= new Date().getMonth() + 1);
   const monthColors = months.map(m => {
     if (!m.days_elapsed) return 'rgba(99,102,241,0.3)'; // future month
-    return m.steps >= GOAL * m.days_elapsed
+    return m.steps >= goal * m.days_elapsed
       ? 'rgba(34,197,94,0.75)'   // green = goal reached
       : 'rgba(99,102,241,0.7)';  // purple = not yet
   });
@@ -154,13 +161,13 @@ function render(d) {
         borderRadius: 4,
       }, {
         type: 'line',
-        label: `Mål (${fmt(GOAL)}/dag × dagar)`,
+        label: `Mål (${fmt(goal)}/dag × dagar)`,
         data: months.map(m => {
           const daysInMonth = new Date(d.year, m.month, 0).getDate();
           const today = new Date();
           const isCurrentMonth = m.month === today.getMonth() + 1 && d.year === today.getFullYear();
           const days = isCurrentMonth ? today.getDate() : (m.steps > 0 ? daysInMonth : 0);
-          return days * GOAL;
+          return days * goal;
         }),
         borderColor: 'rgba(34,197,94,0.5)',
         borderWidth: 1.5,
@@ -174,7 +181,7 @@ function render(d) {
   });
 
   // ── WEEKLY CHART ──
-  const WEEKLY_GOAL = GOAL * 7; // 70,000
+  const WEEKLY_GOAL = goal * 7;
   const weekColors = d.weeks.map(w => w.steps >= WEEKLY_GOAL ? 'rgba(34,197,94,0.75)' : 'rgba(99,102,241,0.65)');
   new Chart(document.getElementById('weekly-chart'), {
     type: 'bar',
@@ -222,7 +229,7 @@ function render(d) {
     `Dagliga steg — ${SV_MONTHS_FULL[month]}`;
 
   const dailyColors = d.current_month.map(x =>
-    x.steps >= GOAL ? 'rgba(34,197,94,0.75)' : 'rgba(99,102,241,0.6)');
+    x.steps >= goal ? 'rgba(34,197,94,0.75)' : 'rgba(99,102,241,0.6)');
 
   new Chart(document.getElementById('daily-chart'), {
     type: 'bar',
