@@ -58,7 +58,11 @@ while cur <= end:
     if key not in cache or key in (today_key, yesterday_key):
         try:
             stats = client.get_stats(key)
-            cache[key] = stats.get("totalSteps") or 0
+            fetched_steps = stats.get("totalSteps") or 0
+            prev_steps = int(cache.get(key, 0) or 0)
+            # Guard against temporary Garmin lag/regressions for today/yesterday.
+            # Keep the highest observed value for the date.
+            cache[key] = max(prev_steps, fetched_steps)
             fetched += 1
             if fetched % 10 == 0:
                 print(f"  fetched {fetched} days...", file=sys.stderr)
